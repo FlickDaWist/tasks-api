@@ -1,9 +1,14 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
@@ -24,6 +29,10 @@ export class UsersService {
     return true;
   }
 
+  private async hashPassword(password) {
+    return await bcrypt.hash(password, 10);
+  }
+
   async create(createUserDto: CreateUserDto) {
     const uniqueCheck = await this.isUnique({
       username: createUserDto.username,
@@ -33,7 +42,9 @@ export class UsersService {
       throw new BadRequestException('Username has been used, try another');
     }
 
-    const result = this.usersRepository.save(createUserDto);
+    createUserDto.password = await this.hashPassword(createUserDto.password);
+    const result = await this.usersRepository.save(createUserDto);
+    delete result.password;
     return result;
   }
 
@@ -70,19 +81,42 @@ export class UsersService {
     return result;
   }
 
+  async findOneByAuth(username, password) {
+    const result = await this.usersRepository.findOne({
+      where: { username },
+      select: ['username', 'password', 'id'],
+    });
+
+    if (!result) {
+      throw new BadRequestException('user not found');
+    }
+
+    const isMatch = await bcrypt.compare(password, result.password);
+    if (!isMatch) {
+      throw new UnauthorizedException('password is wrong');
+    }
+
+    return result;
+  }
+
   async update(id: number, updateUserDto: UpdateUserDto) {
     const old = await this.findOne(id);
 
     updateUserDto.fullName && (old.fullName = updateUserDto.fullName);
     updateUserDto.address && (old.address = updateUserDto.address);
-    updateUserDto.password && (old.password = updateUserDto.password);
     updateUserDto.phoneNumber && (old.phoneNumber = updateUserDto.phoneNumber);
 
-    return await this.usersRepository.save(old);
+    if (updateUserDto.password) {
+      old.password = await this.hashPassword(updateUserDto.password);
+    }
+
+    const result = await this.usersRepository.save(old);
+    delete result.password;
+    return result;
   }
 
   async remove(id: number) {
     const old = await this.findOne(id);
-    return await this.usersRepository.delete(old);
+    return await this.usersRepository.delete({ id: old.id });
   }
 }

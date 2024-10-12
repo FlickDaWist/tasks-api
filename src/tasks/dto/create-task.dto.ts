@@ -1,9 +1,9 @@
 import {
   IsBoolean,
-  IsDate,
+  IsDateString,
   IsNotEmpty,
   IsOptional,
-  IsString,
+  IsString
 } from 'class-validator';
 
 export class CreateTaskDto {
@@ -16,7 +16,7 @@ export class CreateTaskDto {
   description: string;
 
   @IsOptional()
-  @IsDate()
+  @IsDateString()
   dueDate: Date;
 
   @IsOptional()
