@@ -1,0 +1,88 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ILike, Repository } from 'typeorm';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { User } from './entities/user.entity';
+
+@Injectable()
+export class UsersService {
+  constructor(
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
+  ) {}
+
+  private async isUnique(objs) {
+    const found = await this.usersRepository.find({
+      where: objs,
+    });
+
+    if (found.length > 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  async create(createUserDto: CreateUserDto) {
+    const uniqueCheck = await this.isUnique({
+      username: createUserDto.username,
+    });
+
+    if (!uniqueCheck) {
+      throw new BadRequestException('Username has been used, try another');
+    }
+
+    const result = this.usersRepository.save(createUserDto);
+    return result;
+  }
+
+  async findAll(options) {
+    let page = options.page || 0;
+    let take = options.take || 10;
+    let query = [];
+
+    options.username &&
+      query.push({ username: ILike(`%${options.username}%`) });
+    options.fullName &&
+      query.push({ fullName: ILike(`%${options.fullName}%`) });
+    options.phoneNumber &&
+      query.push({ phoneNumber: ILike(`%${options.phoneNumber}%`) });
+    options.address && query.push({ address: ILike(`%${options.address}%`) });
+
+    const result = await this.usersRepository.find({
+      where: query,
+      take,
+      skip: page * take,
+    });
+
+    return result;
+  }
+
+  async findOne(id: number) {
+    const result = await this.usersRepository.findOne({
+      where: { id },
+    });
+
+    if (!result) {
+      throw new BadRequestException('user not found');
+    }
+    return result;
+  }
+
+  async update(id: number, updateUserDto: UpdateUserDto) {
+    const old = await this.findOne(id);
+
+    updateUserDto.fullName && (old.fullName = updateUserDto.fullName);
+    updateUserDto.address && (old.address = updateUserDto.address);
+    updateUserDto.password && (old.password = updateUserDto.password);
+    updateUserDto.phoneNumber && (old.phoneNumber = updateUserDto.phoneNumber);
+
+    return await this.usersRepository.save(old);
+  }
+
+  async remove(id: number) {
+    const old = await this.findOne(id);
+    return await this.usersRepository.delete(old);
+  }
+}
