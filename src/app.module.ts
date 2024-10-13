@@ -20,7 +20,7 @@ import { UsersModule } from './users/users.module';
       autoLoadEntities: true,
       // entities: [User],
       synchronize: true, // dev only
-      logging: true, //dev only
+      // logging: true, //dev only
     }),
 
     UsersModule,
